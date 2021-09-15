@@ -1,0 +1,418 @@
+---
+title: "Assignment Montgomery Simes 46437819"
+output: pdf_document
+---
+```{r setup, warning=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+surg <- read.table(here::here("data", "surg.dat"), header = TRUE)
+kml <- read.table(here::here("data", "kml.dat"), header = TRUE)
+library(knitr)
+```
+## Investigation of Survival Time (in days) Post Surgery
+```{r surgNum, echo=FALSE}
+keepColumns = c(1:5, 7)
+gendercols = c("green", "blue")[as.factor(surg$gender)]
+surgNum = surg[,keepColumns]
+pairs(surgNum, main = "Scatterplot Matrix of Response (Survival) and Predictor Variables", cex.main=0.8, panel = panel.smooth, col = gendercols)
+```
+The scatterplot matrix above shows the relationships between the pairs of variables.
+
+As the gender variable is categorical it has been removed and the gender of individual observations is displayed as green for female and blue for male. 
+
+It can be observed that overall females have a smaller blood clotting index and higher liver function index. 
+
+A positive linear relationship is evident between liver function index and survival time. A non-linear positive relationship is evident between the predictor variables enzyme function index and prognosis index and the response survival time. A possible small negative linear relationship could exist between age and survival.
+
+The relationships between predictor variables is difficult to interpret due to statistical noise, however it is evident that there is no strong correlation between predictor variables.  
+\newpage
+
+
+
+```{r surgCor, echo=FALSE}
+corMatrix = cor(surgNum)
+knitr::kable(corMatrix, "pipe",align = c('c', 'c', 'c','c','c'), digits = 3, caption = "Correlation Matrix")
+```
+
+The correlation matrix above provides a summary of the possible linear relationships between pairs of variables.The correlations have a value between -1 (perfect negative correlation) and 1 (perfect positive correlation). \newline
+A medium positive correlation is evident between liver function index, enzyme function index and survival. A smaller correlation is evident between the response and prognosis index and blood clotting index. A slight negative correlation exists between age and survival time. 
+
+There is a small negative correlation between age and liver function index. A small to medium positive correlation exists between blood clotting index, prognosis index, enzyme index and liver function index. A small negative correlation exists between enzyme index and blood clotting index.
+
+### Multiple Linear Regression Analysis
+#### Multiple regression model:
+$$
+Y = \beta_0 + \beta_1X_1 + \beta_2X_2 + \beta_3X_3 + \beta_4X_4 + \beta_5X_5 + \beta_6X_6 +\epsilon
+$$
+$$
+\epsilon \sim N(0,\sigma^2)
+$$
+$\beta_0$: Intercept
+
+$\beta_k$: Partial regression coefficients
+
+$X_k$: Predictor variables
+
+$Y$: Response variable
+
+#### Estimated regression model:
+$$
+\hat{Survival} = b_0 + b_1blood + b_2prognosis + b_3enzyme + b_4liver + b_5age + b_6gender 
+$$
+$$
+\epsilon \sim N(0,\sigma^2)
+$$
+$b_0$: Intercept
+
+$b_k$: Partial regression coefficients 
+
+#### Overall ANOVA test of mulitple regression: 
+##### Hypotheses:
+
+$$
+H_0: \beta_1 = \beta_2 = \beta_3 = \beta_4 = \beta_5 = \beta_6 = 0
+$$
+$$
+H_1: \beta_i \neq 0
+$$
+\newpage
+
+```{r anovaTable, results='asis', echo=FALSE}
+#re-add gender to table and re-code gender
+# male = 1 & female = 0
+surgNum = surg[,]
+genderValues = 1:0
+surgNum$gender = genderValues[match(surgNum$gender,c("M","F"))]
+
+options(knitr.kable.NA = '')
+surgNum.lm = lm(survival ~ blood + prognosis + enzyme + liver + age + gender, data = surgNum)
+regDF = 6
+resDF = 47
+totDF = resDF + regDF
+RegSS = sum(anova(surgNum.lm)[[2]][1:6])
+ResSS = anova(surgNum.lm)[[2]][7]
+totSS = RegSS + ResSS
+RegMS = RegSS/regDF
+ResMS = ResSS/resDF
+Fval = RegMS/ResMS
+Source = c("Regression", "Residual", "Total")
+d.f. = c(regDF, resDF, totDF)
+S.S. = c(RegSS,ResSS, totSS)
+M.S. = c(RegMS,ResMS,NA)
+Fvalue = c(Fval,NA,NA)
+anovaTable = data.frame(Source, d.f., S.S., M.S., Fvalue)
+knitr::kable(anovaTable, "pipe",align = c('l','c', 'c', 'c','c'), digits = 2, caption = "Overall ANOVA table")
+```
+
+##### F statistic
+$$
+F_{obs} = \frac{Regression\ M.S.}{Residual\ M.S.} = \frac{`r format(RegMS, nsmall = 2)`}{`r format(ResMS, nsmall = 2)`} = `r format(Fval, nsmall = 5)`
+$$
+
+#### Null Distribution
+
+Under $H_0$, $F_{obs} \sim F_{`r regDF`,`r resDF`}$
+
+#### P-Value 
+```{r surgNum.lmPvalue, echo=FALSE}
+Pval = 1- pf(Fval,regDF,resDF)
+```
+$P(F_{`r regDF`,`r resDF`} \geq `r format(Fval, nsmall = 5)`) = `r Pval` < 0.05$
+
+#### Conclusion
+
+As the P-value is less than the significance level of 0.05 there is evidence to reject $H_0$ for $H_1$. There is evidence suggesting a relationship exists between survival time and at least one of the predictor variables, subject to the validation of the model. 
+
+### StepWise Backward Estimation
+
+
+To improve the model a stepwise backward estimation was conducted.
+The table below shows a summary of the coefficients used in the above model:
+```{r coefficientsTable1, results='asis', echo=FALSE}
+knitr::kable(summary(surgNum.lm)$coefficients, "pipe",align = c('c', 'c', 'c','c'), digits = 3)
+```
+As gender has the largest insignificant P-value of 0.997, it was removed from the regression model and the model was re-fit. The coefficients were recalculated to be:
+```{r coefficientsTable2, results='asis', echo=FALSE}
+surgNumV1.lm = lm(survival ~ blood + prognosis + enzyme + liver + age , data = surgNum)
+knitr::kable(summary(surgNumV1.lm)$coefficients, "pipe",align = c('c', 'c', 'c','c'), digits = 3)
+```
+As Liver function index has the largest insignificant P-value of 0.438, it was removed from the regression model and the model was re-fit. The coefficients were recalculated to be:
+```{r coefficientsTable3, results='asis', echo=FALSE}
+surgNumV2.lm = lm(survival ~ blood + prognosis + enzyme + age , data = surgNum)
+knitr::kable(summary(surgNumV2.lm)$coefficients, "pipe",align = c('c', 'c', 'c','c'), digits = 3)
+```
+As age has the largest insignificant P-value of 0.298, it was removed from the regression model and the model was re-fit. The coefficients were recalculated to be:
+```{r coefficientsTable4, results='asis', echo=FALSE}
+surgNumV3.lm = lm(survival ~ blood + prognosis + enzyme , data = surgNum)
+knitr::kable(summary(surgNumV3.lm)$coefficients, "pipe",align = c('c', 'c', 'c','c'), digits = 3)
+```
+As the remaining coefficients were found to be significant the final modified model is:
+
+$$
+\hat{Survival} = b_0 + b_1blood + b_2prognosis + b_3enzyme
+$$
+$$
+\hat{Survival} = `r format(surgNumV3.lm$coefficients[1],digits = 2,nsmall = 2)` + `r format(surgNumV3.lm$coefficients[2],digits = 2,nsmall = 2)`blood + `r format(surgNumV3.lm$coefficients[3],digits = 2,nsmall = 2)`prognosis + `r format(surgNumV3.lm$coefficients[4],digits = 2,nsmall = 2)`enzyme
+$$
+```{r summarySurgNumV3, echo=FALSE}
+summary(surgNumV3.lm)
+```
+\newpage
+### Model Validation
+```{r qqplot, fig.align = 'center', out.height="40%", echo=FALSE}
+par(mfrow = c(1,2))
+plot(surgNumV3.lm, which = 1:2,)
+```
+The Q-Q plot shows evidence of a right skew to the distribution of the residuals due to two outliers. The removal of these outliers may result in a more normal distribution of residuals.  
+
+The residuals v. fitted plot shows a concave up shape. This shows that the model does not accurately describe the changes in survival time based off changes to the predictor variables. As such the linearity assumption does not hold. 
+There is also some evidence that the variance between residuals increases with larger fitted values.This suggests that the equal variance assumption does not hold. 
+
+```{r resVx_i, fig.align = 'center',out.height="40%", echo=FALSE}
+ par(mfrow = c(1,3))
+scatter.smooth(surgNum$blood,surgNumV3.lm$residuals, lpars =  list(col = "blue"), main = "Residuals v Blood", ylab = "Residuals", xlab = "Blood Clot Index")
+abline(h = 0, col = 'red', lty=2)
+scatter.smooth(surgNum$prognosis,surgNumV3.lm$residuals, lpars =  list(col = "blue"), main = "Residuals v Prognosis", ylab = "Residuals", xlab = "Prognosis Index")
+abline(h = 0, col = 'red', lty=2)
+scatter.smooth(surgNum$enzyme,surgNumV3.lm$residuals, lpars =  list(col = "blue"), main = "Residuals v Enzyme", ylab = "Residuals", xlab = "Enzyme Function Index")
+abline(h = 0, col = 'red', lty=2)
+
+```
+
+
+An outlier is evident in all three plots. This data point should be investigated and possibly removed from the data set. 
+
+The residuals v blood clot index shows a curvature suggesting that the residuals do not show a random distribution around zero. The variance between the residuals could be consistent.  
+
+The residuals v prognosis index does show a slight curvature.The variance between residuals could be growing as the prognosis index increases.
+
+The residuals v enzyme function index shows a downward trend in residuals as enzyme function increases. The variance between the residuals could be consistent.
+
+#### Validation Summary 
+
+The linearity assumption does not hold for the final model as evidenced by the pattern observed in the residuals v fitted values plot. 
+
+The equal variance assumption may not hold due to the changes in variance observed in the residual v fitted plot and residual v prognosis index plot. 
+
+As the model fails to meet the assumptions, it is not appropriate to explain survival time. 
+
+#### Overall ANOVA test of mulitple regression with response $log(survival)$:
+
+##### Hypotheses
+
+$$
+H_0: \beta_1 = \beta_2 = \beta_3 = \beta_4 = \beta_5 = \beta_6 = 0
+$$
+$$
+H_1: \beta_i \neq 0
+$$
+
+##### Overall ANOVA Table
+
+```{r surgLog, results='asis', echo=FALSE}
+surgNum$survivalLog = log(surg$survival)
+options(knitr.kable.NA = '')
+surgNumLog.lm = lm(survivalLog ~ blood + prognosis + enzyme + liver + age + gender, data = surgNum)
+regDF = 6
+resDF = 47
+totDF = resDF + regDF
+RegSS = sum(anova(surgNumLog.lm)[[2]][1:6])
+ResSS = anova(surgNumLog.lm)[[2]][7]
+totSS = RegSS + ResSS
+RegMS = RegSS/regDF
+ResMS = ResSS/resDF
+Fval = RegMS/ResMS
+Source = c("Regression", "Residual", "Total")
+d.f. = c(regDF, resDF, totDF)
+S.S. = c(RegSS,ResSS, totSS)
+M.S. = c(RegMS,ResMS,NA)
+Fvalue = c(Fval,NA,NA)
+anovaTable = data.frame(Source, d.f., S.S., M.S., Fvalue)
+knitr::kable(anovaTable, "pipe",align = c('l','c', 'c', 'c','c'), digits = 2)
+```
+
+##### F statistic
+$$
+F_{obs} = \frac{Regression\ M.S.}{Residual\ M.S.} = \frac{`r format(RegMS, nsmall = 2)`}{`r format(ResMS, nsmall = 2)`} = `r format(Fval, nsmall = 5)`
+$$
+
+#### Null Distribution
+
+Under $H_0$, $F_{obs} \sim F_{`r regDF`,`r resDF`}$
+
+#### P-Value 
+```{r surgLog.lmPvalue, echo=FALSE}
+Pval = 1- pf(Fval,regDF,resDF)
+```
+$P(F_{`r regDF`,`r resDF`} \geq `r format(Fval, nsmall = 5)`) = `r Pval` < 0.05$
+
+#### Conclusion
+
+As the P-value is less than the significance level of 0.05 there is evidence to reject $H_0$ for $H_1$. There is evidence suggesting a relationship exists between $log(survival)$ and at least one of the predictor variables, subject to the validation of the model. 
+
+### StepWise Backward Estimation
+To improve the model a stepwise backward estimation was conducted.
+the table below shows a summary of the coefficients used in the above model:
+```{r coTablesurgLog1, results='asis', echo=FALSE}
+knitr::kable(summary(surgNumLog.lm)$coefficients, "pipe",align = c('c', 'c', 'c','c'), digits = 3)
+```
+As liver function index has the largest insignificant P-value of 0.955, it was removed from the regression model and the model was re-fit. The coefficients were recalculated to be:
+```{r coTablesurgLog2, results='asis', echo=FALSE}
+surgNumLog.lm = lm(survivalLog ~ blood + prognosis + enzyme + age + gender, data = surgNum)
+knitr::kable(summary(surgNumLog.lm)$coefficients, "pipe",align = c('c', 'c', 'c','c'), digits = 3)
+```
+As gender has the largest insignificant P-value of 0.347, it was removed from the regression model and the model was re-fit. The coefficients were recalculated to be:
+```{r coTablesurgLog3, results='asis', echo=FALSE}
+surgNumLog.lm = lm(survivalLog ~ blood + prognosis + enzyme + age, data = surgNum)
+knitr::kable(summary(surgNumLog.lm)$coefficients, "pipe",align = c('c', 'c', 'c','c'), digits = 3)
+```
+As age has the largest insignificant P-value of 0.123, it was removed from the regression model and the model was re-fit. The coefficients were recalculated to be:
+```{r coTablesurgLog4, results='asis', echo=FALSE}
+surgNumLog.lm = lm(survivalLog ~ blood + prognosis + enzyme , data = surgNum)
+knitr::kable(summary(surgNumLog.lm)$coefficients, "pipe",align = c('c', 'c', 'c','c'), digits = 3)
+```
+As the remaining coefficients were found to be significant the final modified model is:
+$$
+\hat{log(Survival)} = b_0 + b_1blood + b_2prognosis + b_3enzyme
+$$
+$$
+\hat{log(Survival)} = `r format(surgNumLog.lm$coefficients[1],digits = 2,nsmall = 2)` + `r format(surgNumLog.lm$coefficients[2],digits = 2,nsmall = 2)`blood + `r format(surgNumLog.lm$coefficients[3],digits = 2,nsmall = 2)`prognosis + `r format(surgNumLog.lm$coefficients[4],digits = 2,nsmall = 2)`enzyme
+$$
+
+```{r summarySurgLog, echo=FALSE}
+summary(surgNumLog.lm)
+```
+
+#### Model Validation
+```{r surgLogscat, fig.align = 'center', echo=FALSE}
+keepColumns = c(1:3,8)
+surgLog = surgNum[,keepColumns]
+pairs(surgLog,main = "Scatterplot Matrix of Response (log(Survival)) and Predictor Variables", cex.main=0.8, panel = panel.smooth, col = gendercols)
+```
+
+The scatterplot matrix above shows a clear positive linear relationship between enzyme function index and $log(survival)$ exists. A weak positive linear relationship between prognosis index and $log(survival)$ could exist. 
+There is no strong correlation between predictor variables
+
+
+```{r qqplotlog, out.height="40%", fig.align = 'center', echo=FALSE}
+par(mfrow = c(1,2))
+plot(surgNumLog.lm, which = 1:2)
+```
+The residuals v. fitted plot shows an even distibution around zero with no evident patterns. 
+
+The Q-Q plot has a slight 's' shape, however it would be reasonable to consider the residuals came from a normal distribution. 
+
+```{r resVx_ilog, out.height="40%", fig.align = "center", echo=FALSE}
+par(mfrow = c(1,3))
+scatter.smooth(surgLog$blood,surgNumLog.lm$residuals, lpars =  list(col = "blue"),  main = "Residuals v Blood", ylab = "Residuals", xlab = "Blood Clot Index")
+abline(h = 0, col = 'red', lty=2)
+scatter.smooth(surgLog$prognosis,surgNumLog.lm$residuals, lpars =  list(col = "blue"), main = "Residuals v Prognosis", ylab = "Residuals", xlab = "Prognosis Index")
+abline(h = 0, col = 'red', lty=2)
+scatter.smooth(surgLog$enzyme,surgNumLog.lm$residuals, lpars =  list(col = "blue"), main = "Residuals v Enzyme", ylab = "Residuals", xlab = "Enzyme Function Index")
+abline(h = 0, col = 'red', lty=2)
+```
+
+The residuals v blood clot index, residuals v prognosis index and residuals v enzyme function index appear relatively evenly distributed around zero and the variance appears constant.   
+ 
+### Validation Summary
+ 
+The model using $log(survival)$ as the response variable is a appropriate model to use to explain survival time, as the linearity, normality and equal variance assumptions have been satisfied.  
+
+### Model Comparison 
+Both models found that the variables, blood clot index, prognosis index and enzyme function index were significant predictors of survival and $log(survival)$. The variables liver function index, age, and gender were not significant predictors of survival or $log(survival)$. 
+
+The adjusted $R^2$ for the first model is 0.6652. The adjusted $R^2$ for the second model is 0.7427. Based on the adjusted $R^2$ metric the second model is a more powerful model.
+
+As the first model did not meet the required assumptions for a multiple regression model, it was found not to be suitable. As the second model did meet the assumptions, the second model is the superior model with regards to modeling survival time. However it should be noted that the final results of the $log(survival)$ will have to be re-transformed so that the results can be interpreted in survival time (in days).
+\newpage
+
+## Investigation of Fuel Efficiency of Car Engine 
+
+### Balanced Design
+A study with a balanced design has the same number of replicates for each combination of treatments. The table below shows the number of treatment combination observations within the study.
+```{r balancedDesign, results='asis', echo=FALSE}
+balance = table(kml[c("driver", "car")])
+balance = balance[,c(3,5,4,2,1)]
+knitr::kable(balance, "pipe",caption = "Replicates per Car and Driver Combination",align = c('c','c', 'c', 'c','c', 'c') )
+```
+In this case each combination of car and driver have equal replicates therefore the study is balanced. 
+
+
+```{r interactionPlot, echo=FALSE}
+interaction.plot(factor(kml$car, levels = c("one","two","three","four", "five")),kml$driver, kml$kmL, trace.label = "Driver", xlab = "Car", ylab = "KM / L", col = 1:4, lty = 1, main = "Interaction Plot of Car:Driver")
+```
+The interaction plot above displays the interactions between changes in the response as a result of the combination of levels from the car factor and the driver factor. When the lines are parallel, no interaction is evident, that is one factor has a constant effect on the response regardless of the remaining factor. When the lines are non-parallel, an interaction is evident with the larger the difference in slope between the lines the greater the strength of the interaction. 
+
+The Interaction plot for this study shows little difference in the slopes and the plots are predominantly parallel. There are slight differences between the slopes of driver c between cars one and two compared to the other three drivers. A two way ANOVA test should be conducted to see if this interaction effect is significant. 
+
+```{r boxPlot, echo=FALSE}
+
+boxplot(kmL ~ car + driver, data = kml, las = 2, xlab="", main = "Boxplot of Car:Driver")
+mtext("car:driver", side = 1, line = 4)
+
+```
+The boxplot shows some variety in the spread, however this may be due to low sample size. The large differences in groups by driver factor does show a strong main effect.The difference in the medians between car type with the same driver shows a strong main effect by the type of car driven. An interaction effect may be present however this is hard to observe from the boxplot.   
+
+### Two-Way ANOVA
+#### Hypothesis 
+
+Interaction effect: 
+$H_0:$ $\gamma_{ij}$ = 0 for all combinations of $i,j$ 
+$H_1:$ $\gamma_{ij} \neq$ 0 
+
+```{r twANOVA, echo=FALSE}
+kml.aov = aov(kmL ~ car*driver, data = kml)
+kable(anova(kml.aov), digits = 3, caption = "Two-Way ANOVA Table")
+```
+#### P-Value for car:driver 
+$P(F_{12,20} \geq `r anova(kml.aov)[[4]][3]`) = `r anova(kml.aov)[[5]][3]` > 0.05$
+
+#### Summary 
+The Pvalue for the car:driver interaction effect of `r anova(kml.aov)[[5]][3]` is statistically insignificant (> 0.05) therefore we cannot reject $H_0$. The car:driver interaction effect is not significantly different from zero.
+
+The interaction effect was removed from the model to assess the main effects of the driver and car. 
+
+#### Hypothesis 
+
+Main effect Car: 
+$H_0:$ $\alpha_{one} = \alpha_{two} = \alpha_{three} = \alpha_{four} = \alpha_{five}$  
+$H_1:$ $\alpha_{i} \neq$ 0
+
+Main effect Driver: 
+$H_0:$ $\beta_{A} = \beta_{B} =\beta_{C} =\beta_{D}$  
+$H_1:$ $\beta_{i} \neq$ 0
+
+
+```{r twANOVA2, echo=FALSE}
+kml2.aov = aov(kmL ~ car+driver, data = kml)
+kable(anova(kml2.aov), digits = 3, caption = "Two-Way ANOVA Table")
+```
+### P-Value for main effects 
+
+Main effect for car: 
+$P(F_{4,32} \geq `r anova(kml2.aov)[[4]][1]`) = `r anova(kml2.aov)[[5]][1]` < 0.05$
+\newline
+Main effect for driver:
+$P(F_{3,32} \geq `r anova(kml2.aov)[[4]][2]`) = `r anova(kml2.aov)[[5]][2]` < 0.05$
+
+#### Summary
+There is sufficient evidence to reject the $H_0$ for both the main effects of driver and car as the pvalue is less than the significance level of 0.05. 
+
+#### Model Validation
+
+The boxpot above is used to check for equal variability across different groups. The boxplot does show some variability in spread. It must be considered that only 2 observations were recorded for each combination of factors.
+
+
+```{r twaVal, echo=FALSE}
+par(mfrow= c(1,2))
+plot(kml2.aov, which = 1:2)
+
+```
+The residuals v. fitted plot shows evenly distributed residuals around zero and variance appears constant. The normal QQ plot is linear suggesting that the residuals follow normal distribution. The assumptions for the model have been satisfied.
+
+### Conclusions 
+Upon investigating the interaction effect of car:driver it was found that there was insufficient evidence to suggest there is an interaction effect on fuel efficiency between the combination of factors. This was suggested by the primarily parallel configuration of the interaction plot and confirmed by the results of the two-way ANOVA test. 
+It was found that the car factor and driver factor had a significant main effect on the fuel efficiency performance. This was evident by the differences evident in the boxplot plot and confirmed by the two-way ANOVA analysis.
+
+
+### Question 4 repository link
+https://github.com/MQ-STAT2170-STAT6180/assignment-montysimes
